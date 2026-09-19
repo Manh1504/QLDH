@@ -11,7 +11,7 @@
   "scripts": {
     "dev:api": "npm run start:dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace=apps/api --workspace=apps/web",
     "db:migrate": "npm run migrate:dev --workspace=packages/db",
     "db:seed": "npm run seed --workspace=packages/db"
   }

@@ -18,6 +18,6 @@ export class StockLedgerController {
     return this.prisma.$transaction([
       this.prisma.inventoryTransaction.count({ where }),
       this.prisma.inventoryTransaction.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 }

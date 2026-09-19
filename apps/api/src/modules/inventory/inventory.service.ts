@@ -23,13 +23,13 @@ export class InventoryService {
     return this.prisma.$transaction([
       this.prisma.inventoryStock.count({ where }),
       this.prisma.inventoryStock.findMany({ where, skip, take: pageSize, include: { variant: { include: { product: true } } }, orderBy: { variantId: 'asc' } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   // Nhập tay: tạo variant nếu chưa có (upsert theo internalCode), cộng tồn, ghi thẻ kho
   async inbound(input: { internalCode: string; salesCode?: string; productCode: string; productName: string; color: string; size: string; warehouse?: string; location?: string; qty: number }, actorId: string) {
     if (input.qty <= 0) throw new BadRequestException('Số lượng phải > 0');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const product = await tx.product.upsert({
         where: { code: input.productCode },
         update: {},
@@ -52,7 +52,7 @@ export class InventoryService {
   async transfer(input: { variantId: string; from: string; to: string; qty: number }, actorId: string) {
     if (!Number.isInteger(Number(input.qty)) || Number(input.qty) <= 0) throw new BadRequestException('Số lượng chuyển phải là số nguyên > 0');
     if (!input.from || !input.to || input.from === input.to) throw new BadRequestException('Kho nguồn và kho đích phải khác nhau');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       let src = await tx.inventoryStock.findFirst({ where: { variantId: input.variantId, warehouse: input.from } });
       if (!src || src.onHand - src.held < input.qty) throw new BadRequestException('Không đủ tồn để chuyển');
       await tx.$queryRawUnsafe(`SELECT id FROM "InventoryStock" WHERE id=$1 FOR UPDATE`, src.id);
@@ -81,11 +81,11 @@ export class InventoryService {
     return this.prisma.$transaction([
       this.prisma.stockAdjustRequest.count({ where }),
       this.prisma.stockAdjustRequest.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   approveAdjustment(id: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const request = await tx.stockAdjustRequest.findUnique({ where: { id } });
       if (!request || request.status !== 'PENDING') throw new BadRequestException('Yêu cầu không còn chờ duyệt');
       let stock = await tx.inventoryStock.findFirst({ where: { variantId: request.variantId, warehouse: request.warehouse, location: request.location } });

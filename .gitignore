@@ -1,0 +1,14 @@
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+coverage/
+playwright-report/
+test-results/
+# Data nặng không commit
+*.zip
+*.xlsx
+!packages/db/seed-data/*.csv

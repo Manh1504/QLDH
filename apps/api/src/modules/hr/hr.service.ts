@@ -37,10 +37,10 @@ export class HrService {
     for (const e of emps) {
       const atts = e.attendance;
       const advs = e.advances;
-      const totalShifts = atts.reduce((s, a) => s + Number(a.shifts), 0);
-      const overtimeH = atts.reduce((s, a) => s + Number(a.overtimeH), 0);
-      const bonus = atts.reduce((s, a) => s + Number(a.bonus), 0);
-      const totalAdv = advs.reduce((s, a) => s + Number(a.amount), 0);
+      const totalShifts = atts.reduce((s: number, a: any) => s + Number(a.shifts), 0);
+      const overtimeH = atts.reduce((s: number, a: any) => s + Number(a.overtimeH), 0);
+      const bonus = atts.reduce((s: number, a: any) => s + Number(a.bonus), 0);
+      const totalAdv = advs.reduce((s: number, a: any) => s + Number(a.amount), 0);
       const dailyWage = Number(e.dailyWage || 0);
       out.push({ employee: e.name, totalShifts, overtimeH, bonus, totalAdv, estimate: totalShifts * dailyWage + overtimeH * dailyWage / 8 + bonus - totalAdv });
     }

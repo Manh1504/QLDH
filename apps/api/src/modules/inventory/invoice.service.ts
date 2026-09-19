@@ -9,7 +9,7 @@ export class InvoiceService {
     const o = await this.prisma.order.findUnique({ where: { id: orderId }, include: { invoice: true } });
     if (!o || !['VAN_CHUYEN', 'XUAT_KHO'].includes(o.status)) throw new BadRequestException('Chỉ sinh hóa đơn từ Vận chuyển/Xuất kho');
     if (o.invoice) throw new BadRequestException('Đã có hóa đơn');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const paid = Number(o.paid);
       const total = Number(o.total);
       const status = paid <= 0 ? 'UNPAID' : paid < total ? 'PARTIAL' : 'PAID';
@@ -27,7 +27,7 @@ export class InvoiceService {
 
   // Sửa hóa đơn: lưu vết cũ vào AuditLog, không ghi đè mất dấu
   async update(id: string, patch: { total?: number; paid?: number; photoUrl?: string }, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const old = await tx.invoice.findUnique({ where: { id } });
       if (!old || old.deletedAt) throw new BadRequestException('Hóa đơn không hợp lệ');
       await tx.auditLog.create({ data: { actorId, action: 'INVOICE_EDIT', entityType: 'Invoice', entityId: id, payload: { old, patch } as any } });
@@ -44,7 +44,7 @@ export class InvoiceService {
   }
 
   remove(id: string, actorId: string, reason: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       await tx.auditLog.create({ data: { actorId, action: 'INVOICE_VOID', entityType: 'Invoice', entityId: id, payload: { reason } as any } });
       return tx.invoice.update({ where: { id }, data: { deletedAt: new Date(), status: 'VOID' } });
     });

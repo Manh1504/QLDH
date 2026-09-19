@@ -29,12 +29,12 @@ export class MaterialsService {
     return this.prisma.$transaction([
       this.prisma.materialTransaction.count({ where }),
       this.prisma.materialTransaction.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   async debt(supplierId: string) {
     const transactions = await this.prisma.materialTransaction.findMany({ where: { supplierId } });
-    const debt = transactions.reduce((sum, transaction) => sum + (['THANH_TOAN', 'UNG'].includes(transaction.type) ? -1 : 1) * Number(transaction.amount), 0);
+    const debt = transactions.reduce((sum: number, transaction: any) => sum + (['THANH_TOAN', 'UNG'].includes(transaction.type) ? -1 : 1) * Number(transaction.amount), 0);
     return { debt: Math.max(0, debt) };
   }
 }

@@ -24,7 +24,7 @@ export class AuthGuard implements CanActivate {
     if (!roles || roles.length === 0) return true;
     const userRoles: string[] = req.user?.roles || [];
     if (userRoles.includes('OWNER') || userRoles.includes('ADMIN')) return true;
-    const ok = roles.some((r) => userRoles.includes(r));
+    const ok = roles.some((r: any) => userRoles.includes(r));
     if (!ok) throw new ForbiddenException('Không có quyền');
     return true;
   }

@@ -26,13 +26,13 @@ export class FactoriesService {
 
   pay(factoryId: string, amount: number, settlementId?: string, method?: string, note?: string) {
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Số tiền trả phải > 0');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const settlements = await tx.factorySettlement.findMany({
         where: settlementId ? { id: settlementId, factoryId } : { factoryId, status: { not: 'DONE' } },
         orderBy: { createdAt: 'asc' },
       });
       if (settlementId && !settlements.length) throw new BadRequestException('Chốt không thuộc nhà may');
-      const debt = settlements.reduce((sum, settlement) => sum + Math.max(0, Number(settlement.amount) - Number(settlement.paid)), 0);
+      const debt = settlements.reduce((sum: number, settlement: any) => sum + Math.max(0, Number(settlement.amount) - Number(settlement.paid)), 0);
       if (amount > debt) throw new BadRequestException(`Số tiền vượt công nợ ${debt.toLocaleString('vi-VN')}đ`);
       const p = await tx.factoryPayment.create({ data: { factoryId, amount, settlementId, method, note } });
       let remaining = amount;
@@ -62,7 +62,7 @@ export class FactoriesService {
     return this.prisma.$transaction([
       this.prisma.factorySettlement.count({ where }),
       this.prisma.factorySettlement.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   paymentHistory(factoryId: string, q: any) {
@@ -71,7 +71,7 @@ export class FactoriesService {
     return this.prisma.$transaction([
       this.prisma.factoryPayment.count({ where }),
       this.prisma.factoryPayment.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   cutters(q: any) {
@@ -99,6 +99,6 @@ export class FactoriesService {
     return this.prisma.$transaction([
       this.prisma.cutterTransaction.count({ where }),
       this.prisma.cutterTransaction.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 }

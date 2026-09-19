@@ -9,7 +9,7 @@ export class ShipmentService {
     const o = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!o || o.status !== 'XUAT_KHO') throw new BadRequestException('Chỉ tạo vận chuyển từ Xuất kho');
     if (!carrier?.trim()) throw new BadRequestException('Chưa nhập chành xe');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const s = await tx.shipment.create({ data: { orderId, carrier: carrier.trim(), history: [{ at: new Date().toISOString(), by: actorId, event: 'CREATED' }] as any } });
       await tx.order.update({ where: { id: orderId }, data: { status: 'VAN_CHUYEN', history: { create: { fromStatus: 'XUAT_KHO', toStatus: 'VAN_CHUYEN', actorId } } } });
       return s;

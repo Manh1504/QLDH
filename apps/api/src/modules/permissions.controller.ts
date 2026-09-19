@@ -32,7 +32,7 @@ export class PermissionsController {
     const roles: string[] = req.user.roles || [];
     if (roles.includes('OWNER') || roles.includes('ADMIN')) return { modules: MODULES };
     const rows = await this.prisma.permission.findMany({ where: { role: { in: roles }, canView: true } });
-    return { modules: [...new Set(rows.map((r) => r.module))] };
+    return { modules: [...new Set(rows.map((r: any) => r.module))] };
   }
 
   @Patch(':role/:module')

@@ -13,14 +13,14 @@ export class PaymentsController {
   async collect(@Req() req: any, @Body() b: { customerId: string; orderId?: string; amount: number; method?: string; note?: string }) {
     const amount = Number(b.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Số tiền thu phải > 0');
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const customer = await tx.customer.findUnique({ where: { id: b.customerId } });
       if (!customer) throw new BadRequestException('Không thấy khách hàng');
       const orders = b.orderId
         ? await tx.order.findMany({ where: { id: b.orderId, customerId: b.customerId, status: { not: 'HUY' } }, include: { invoice: true } })
         : await tx.order.findMany({ where: { customerId: b.customerId, status: { not: 'HUY' } }, orderBy: { createdAt: 'asc' }, include: { invoice: true } });
       if (b.orderId && !orders.length) throw new BadRequestException('Đơn không thuộc khách hàng');
-      const outstanding = orders.reduce((sum, order) => sum + Math.max(0, Number(order.total) - Number(order.paid)), 0);
+      const outstanding = orders.reduce((sum: number, order: any) => sum + Math.max(0, Number(order.total) - Number(order.paid)), 0);
       if (amount > outstanding) throw new BadRequestException(`Số tiền thu vượt công nợ ${outstanding.toLocaleString('vi-VN')}đ`);
       const p = await tx.customerPayment.create({ data: { customerId: b.customerId, orderId: b.orderId, amount, method: b.method, note: b.note } });
       let remaining = amount;
@@ -54,7 +54,7 @@ export class PaymentsController {
     return this.prisma.$transaction([
       this.prisma.customerPayment.count({ where }),
       this.prisma.customerPayment.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   @Get('customer/:id')

@@ -41,15 +41,15 @@ export class CustomersService {
         .replace('$X', String(pageSize)).replace('$Y', String(skip)),
       ...(kw ? [`%${kw}%`] : []),
     );
-    const ids = rows.map((r) => r.id);
+    const ids = rows.map((r: any) => r.id);
     const total: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT COUNT(*)::int AS c FROM "Customer" c ${kw ? `WHERE c."name" ILIKE $1 OR c."phone" ILIKE $1 OR c."code" ILIKE $1` : ''}`,
       ...(kw ? [`%${kw}%`] : []),
     );
     const data = ids.length ? await this.prisma.customer.findMany({ where: { id: { in: ids } } }) : [];
-    const byId = new Map(data.map((d) => [d.id, d]));
-    const debtById = new Map(rows.map((row) => [row.id, Number(row.debt)]));
-    return { data: ids.map((id) => byId.get(id)).filter(Boolean).map((customer) => ({ ...customer, debt: debtById.get(customer!.id) || 0 })), total: total[0]?.c || 0, page, pageSize };
+    const byId: Map<string, any> = new Map(data.map((d: any) => [d.id, d]));
+    const debtById: Map<string, number> = new Map(rows.map((row: any) => [row.id, Number(row.debt)]));
+    return { data: ids.map((id: string) => ({ ...byId.get(id), debt: debtById.get(id) || 0 })).filter((c: any) => c && c.code), total: total[0]?.c || 0, page, pageSize };
   }
 
   async get(id: string) {

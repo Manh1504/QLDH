@@ -17,7 +17,7 @@ export class SystemExtraController {
     return this.prisma.$transaction([
       this.prisma.orderImage.count(),
       this.prisma.orderImage.findMany({ orderBy, skip, take: pageSize, include: { order: { select: { code: true } } } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize, sort: q.sort || 'newest' }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize, sort: q.sort || 'newest' }));
   }
 
   // Cảnh báo: tồn khả dụng thấp, nợ khách cao, đơn kẹt Đang soạn quá 3 ngày
@@ -48,7 +48,7 @@ export class SystemExtraController {
     return this.prisma.$transaction([
       this.prisma.invoice.count({ where }),
       this.prisma.invoice.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, include: { order: { select: { code: true, customerId: true, customer: { select: { name: true } } } } } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   @Get('shipments')
@@ -59,6 +59,6 @@ export class SystemExtraController {
     return this.prisma.$transaction([
       this.prisma.shipment.count({ where }),
       this.prisma.shipment.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, include: { order: { select: { code: true } } } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 }

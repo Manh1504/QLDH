@@ -16,6 +16,6 @@ export class ReturnsListController {
     return this.prisma.$transaction([
       this.prisma.return.count({ where }),
       this.prisma.return.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, include: { items: true, order: { select: { code: true } }, customer: { select: { name: true } } } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 }

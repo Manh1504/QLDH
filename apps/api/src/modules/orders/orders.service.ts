@@ -16,10 +16,10 @@ export class OrdersService {
 
   async create(dto: CreateOrderDto, actorId: string) {
     if (!dto.items?.length) throw new BadRequestException('Đơn phải có ít nhất 1 dòng hàng');
-    if (dto.items.some((i) => !Number.isFinite(Number(i.qty)) || i.qty <= 0 || !Number.isFinite(Number(i.unitPrice)) || i.unitPrice < 0)) {
+    if (dto.items.some((i: any) => !Number.isFinite(Number(i.qty)) || i.qty <= 0 || !Number.isFinite(Number(i.unitPrice)) || i.unitPrice < 0)) {
       throw new BadRequestException('Số lượng phải > 0 và đơn giá không được âm');
     }
-    const total = dto.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+    const total = dto.items.reduce((s: number, i: any) => s + i.qty * i.unitPrice, 0);
     // Mã đơn do server đảm bảo duy nhất: thử mã client gửi, trùng thì tự sinh lại (tối đa 5 lần)
     let code = dto.code?.trim() || this.genCode();
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -33,7 +33,7 @@ export class OrdersService {
             note: dto.note || [dto.customerNote, dto.staffNote].filter(Boolean).join(' | ') || null,
             total, status: 'MOI',
             items: {
-              create: dto.items.map((i) => ({
+              create: dto.items.map((i: any) => ({
                 variantId: i.variantId || null,
                 productName: i.variantId ? null : i.productName || null,
                 color: i.variantId ? null : i.color || null,
@@ -65,7 +65,7 @@ export class OrdersService {
     return this.prisma.$transaction([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, include: { customer: true } }),
-    ]).then(([total, data]) => ({ data, total, page, pageSize }));
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 
   async get(id: string) {
@@ -94,7 +94,7 @@ export class OrdersService {
 
   // Giữ tồn khi DANG_SOAN: held += qty trong transaction, kiểm tra khả dụng
   async hold(id: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (o.status !== 'MOI') throw new BadRequestException('Chỉ giữ tồn từ trạng thái Mới');
@@ -118,7 +118,7 @@ export class OrdersService {
   }
 
   async release(id: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (o.status !== 'DANG_SOAN') throw new BadRequestException('Chỉ nhả giữ khi đơn đang soạn');
@@ -141,7 +141,7 @@ export class OrdersService {
 
   // Xuất kho: trừ tồn thật + tạo thẻ kho + khóa sửa (optimistic version)
   async export(id: string, actorId: string, version: number) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (o.status !== 'DANG_SOAN') throw new BadRequestException('Chỉ xuất kho từ Đang soạn');
@@ -166,7 +166,7 @@ export class OrdersService {
   }
 
   async transition(id: string, to: any, actorId: string, note?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true, invoice: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (!canTransition(o.status, to)) throw new BadRequestException(`${o.status} -> ${to} không hợp lệ`);
@@ -219,7 +219,7 @@ export class OrdersService {
     if (!Number.isInteger(Number(dto.qty)) || Number(dto.qty) <= 0 || !Number.isFinite(Number(dto.unitPrice)) || Number(dto.unitPrice) < 0) {
       throw new BadRequestException('Số lượng phải là số nguyên > 0 và đơn giá không được âm');
     }
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (o.status !== 'MOI') throw new BadRequestException('Chỉ thêm dòng khi đơn còn Mới (nhả giữ trước)');
@@ -232,7 +232,7 @@ export class OrdersService {
           saleType: dto.saleType || null, imageUrl: dto.imageUrl || null, note: dto.note || null,
         },
       });
-      const total = o.items.reduce((s, i) => s + i.qty * Number(i.unitPrice), 0) + item.qty * Number(item.unitPrice);
+      const total = o.items.reduce((s: number, i: any) => s + i.qty * Number(i.unitPrice), 0) + item.qty * Number(item.unitPrice);
       await tx.order.update({ where: { id }, data: { total, version: { increment: 1 } } });
       await tx.auditLog.create({ data: { actorId, action: 'ORDER_ADD_ITEM', entityType: 'Order', entityId: id, payload: { itemId: item.id } as any } });
       return item;
@@ -241,15 +241,15 @@ export class OrdersService {
 
   // Xóa dòng hàng: chỉ khi Mới và chưa giữ/xuất
   async removeItem(id: string, itemId: string, actorId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const o = await tx.order.findUnique({ where: { id }, include: { items: true } });
       if (!o) throw new NotFoundException('Không thấy đơn');
       if (o.status !== 'MOI') throw new BadRequestException('Chỉ xóa dòng khi đơn còn Mới');
-      const it = o.items.find((i) => i.id === itemId);
+      const it = o.items.find((i: any) => i.id === itemId);
       if (!it) throw new NotFoundException('Không thấy dòng');
       if (it.heldQty || it.exportedQty) throw new BadRequestException('Dòng đã giữ/xuất tồn, nhả giữ trước');
       await tx.orderItem.delete({ where: { id: itemId } });
-      const total = o.items.filter((i) => i.id !== itemId).reduce((s, i) => s + i.qty * Number(i.unitPrice), 0);
+      const total = o.items.filter((i: any) => i.id !== itemId).reduce((s: number, i: any) => s + i.qty * Number(i.unitPrice), 0);
       await tx.order.update({ where: { id }, data: { total, version: { increment: 1 } } });
       await tx.auditLog.create({ data: { actorId, action: 'ORDER_REMOVE_ITEM', entityType: 'Order', entityId: id, payload: { itemId } as any } });
       return { ok: true };
