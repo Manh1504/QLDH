@@ -33,4 +33,4 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npx prisma validate --schema packages/db/schema.prisma
       - run: npx prisma migrate deploy --schema packages/db/schema.prisma
-      - run: npm run build --workspaces
+      - run: npm run build
