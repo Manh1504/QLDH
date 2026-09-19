@@ -1,4 +1,6 @@
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/api';
+// Mặc định gọi cùng origin (/api -> proxy sang backend lúc runtime).
+// Đặt NEXT_PUBLIC_API_URL nếu muốn gọi thẳng backend (bypass proxy).
+const API = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 function token(): string | null {
   if (typeof window === 'undefined') return null;

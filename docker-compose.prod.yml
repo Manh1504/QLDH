@@ -56,7 +56,9 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010/api}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+    environment:
+      API_INTERNAL_URL: http://api:8010
     ports:
       - "${WEB_PORT:-8011}:8011"
     depends_on:
