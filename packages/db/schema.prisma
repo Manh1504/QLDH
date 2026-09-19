@@ -1,0 +1,527 @@
+// Azalas — Prisma schema Sprint 0
+// Nguồn cột: 10 file xlsx Drive (02 SALES, 03 KHO, 04 RAP...) + Code.gs
+// Nguyên tắc: PK cuid, mã nghiệp vụ @unique, tiền Decimal, ngày timestamptz,
+// đa bảng bọc $transaction ở API, gợi ý dropdown = query ILIKE (phase sau).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- ENUMS ----------
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum OrderStatus {
+  MOI
+  DANG_SOAN
+  XUAT_KHO
+  VAN_CHUYEN
+  HOA_DON
+  HOAN_TAT
+  HUY
+}
+
+enum ShipmentStatus {
+  CREATED
+  SHIPPING
+  DELIVERED
+  FAILED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  RESTOCKED
+  DEBT_ADJUSTED
+  REJECTED
+}
+
+enum InvTxType {
+  IN
+  OUT
+  TRANSFER
+  ADJUST
+  HOLD
+  RELEASE
+}
+
+enum DebtStatus {
+  OPEN
+  PARTIAL
+  DONE
+}
+
+enum CutterTxType {
+  CHOT
+  UNG
+  TRU_NO
+}
+
+enum MaterialCategory {
+  VAI
+  DAY_KEO
+  THEU
+  IN_NHAN
+  KHAC
+}
+
+enum MaterialTxType {
+  NHAP
+  THANH_TOAN
+  UNG
+  CHOT
+}
+
+// ---------- AUTH / SYSTEM ----------
+model User {
+  id           String     @id @default(cuid())
+  username     String     @unique // tbl_TaiKhoan.User
+  passwordHash String
+  name         String // TenNhanVien
+  phone        String?
+  roles        String[]   @default([]) // OWNER ADMIN MEMBER BAN_HANG KHO RAP KE_TOAN NHAN_SU BAO_CAO
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditLogs    AuditLog[] @relation("ActorLogs")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid()) // MaNhatKy
+  actorId    String
+  actor      User     @relation("ActorLogs", fields: [actorId], references: [id])
+  action     String // HanhDong
+  entityType String // Nhom/Type
+  entityId   String // MaLienQuan
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ---------- SALES / CRM ----------
+model Customer {
+  id            String            @id @default(cuid())
+  code          String            @unique // MaKhachHang
+  name          String // TenKhachHang
+  phone         String?
+  address       String? // DiaChi
+  carrierName   String? // ChanhXe
+  carrierPhone  String? // SDTChanhXe
+  group         String? // NhomKhach
+  region        String? // KhuVuc
+  status        String            @default("ACTIVE")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  orders        Order[]
+  returns       Return[]
+  payments      CustomerPayment[]
+
+  @@index([name])
+}
+
+model Order {
+  id          String            @id @default(cuid())
+  code        String            @unique // MaHoaDon
+  customerId  String
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  type        String            @default("BAN_LE") // LoaiDon
+  urgent      Boolean           @default(false)
+  status      OrderStatus       @default(MOI) // TrangThai
+  shipDate    DateTime? // NgayGiao
+  note        String? // GhiChuKhach + GhiChuNV
+  customerNote String?
+  staffNote   String?
+  lockedById  String? // NguoiSoan đang giữ (1 người/đơn)
+  lockedAt    DateTime?
+  version     Int               @default(0) // optimistic lock, fix race bản cũ
+  total       Decimal           @default(0) // TongTien
+  paid        Decimal           @default(0) // DaThanhToan
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  items       OrderItem[]
+  history     OrderStatusHistory[]
+  images      OrderImage[]
+  shipment    Shipment?
+  invoice     Invoice?
+  returns     Return[]
+
+  @@index([customerId, status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId String? // null = dòng nhập tay (NhapTay) không mã kho
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+  productName String? // TenSP cho dòng nhập tay
+  color     String?
+  size      String?
+  warehouse String  @default("KHO_CHINH") // KhoXuat từng dòng
+  qty       Int
+  unitPrice Decimal
+  saleType  String?
+  imageUrl  String?
+  heldQty   Int     @default(0) // giữ tồn khi DANG_SOAN
+  exportedQty Int   @default(0)
+  note      String?
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus OrderStatus?
+  toStatus  OrderStatus
+  actorId   String
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model OrderImage {
+  id           String   @id @default(cuid()) // MaAnh
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  url          String // LinkAnh (R2 sau này, Drive tạm)
+  thumbnailUrl String?
+  uploadedBy   String
+  createdAt    DateTime @default(now()) // mốc SORT thật, fix lỗi bản cũ
+
+  @@index([orderId, createdAt])
+}
+
+model Shipment {
+  id        String         @id @default(cuid())
+  orderId   String         @unique
+  order     Order          @relation(fields: [orderId], references: [id])
+  carrier   String
+  status    ShipmentStatus @default(CREATED)
+  history   Json           @default("[]")
+  createdAt DateTime       @default(now())
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id])
+  total     Decimal
+  paid      Decimal       @default(0)
+  status    InvoiceStatus @default(UNPAID)
+  photoUrl  String?
+  editedBy  String?
+  editedAt  DateTime?
+  deletedAt DateTime? // xóa mềm
+  createdAt DateTime      @default(now())
+}
+
+model Return {
+  id         String       @id @default(cuid())
+  code       String?      @unique // MaPhieuTra
+  orderId    String? // null khi phiếu cũ không ghi MaHoaDonGoc
+  order      Order?       @relation(fields: [orderId], references: [id])
+  customerId String
+  customer   Customer     @relation(fields: [customerId], references: [id])
+  status     ReturnStatus @default(REQUESTED)
+  note       String?
+  inspectedAt DateTime?
+  createdAt  DateTime     @default(now())
+  approvedAt DateTime?
+  items      ReturnItem[]
+}
+
+model ReturnItem {
+  id           String  @id @default(cuid())
+  returnId     String
+  return       Return  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  variantId    String?
+  orderItemId  String?
+  productName  String?
+  color        String?
+  size         String?
+  qty          Int
+  unitPrice    Decimal @default(0)
+  condition    String?
+  reason       String?
+  warehouse    String  @default("KHO_CHINH")
+  location     String?
+  restockedQty Int     @default(0)
+
+  @@index([orderItemId])
+}
+
+// ---------- KHO (nhập tay, giữ đủ cột) ----------
+model Product {
+  id        String           @id @default(cuid())
+  code      String           @unique // MaSP (tbl_Kho_HangHoa)
+  rapCode   String? // MaRap
+  name      String // TenSanPham
+  brand     String? // Hieu
+  group     String? // NhomHang
+  status    String           @default("ACTIVE")
+  createdAt DateTime         @default(now())
+  variants  ProductVariant[]
+}
+
+model ProductVariant {
+  id           String   @id @default(cuid())
+  internalCode String   @unique // MaHangNoiBo (khóa kho)
+  salesCode    String? // MaBanHang
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  color        String
+  size         String
+  displayName  String? // TenHienThi
+  orderItems   OrderItem[]
+  stocks       InventoryStock[]
+
+  @@unique([productId, color, size])
+  @@index([salesCode])
+}
+
+model InventoryStock {
+  id        String         @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  warehouse String         @default("KHO_CHINH") // Kho
+  location  String? // ViTri
+  onHand    Int            @default(0) // TonThucTe
+  held      Int            @default(0) // TonGiu
+  version   Int            @default(0)
+
+  @@unique([variantId, warehouse, location])
+}
+
+model InventoryTransaction {
+  id        String    @id @default(cuid()) // MaGiaoDichKho (thẻ kho)
+  variantId String
+  type      InvTxType
+  qty       Int // SoLuongThayDoi
+  refCode   String // MaChungTu (phiếu nhập/xuất/kiểm)
+  actorId   String
+  note      String?
+  createdAt DateTime  @default(now())
+
+  @@index([variantId, createdAt])
+}
+
+model StockAdjustRequest {
+  id        String   @id @default(cuid()) // MaYeuCau (tbl_Kho_YeuCauDieuChinhTon)
+  variantId String
+  warehouse String
+  location  String?
+  oldQty    Int // TonCu
+  newQty    Int // TonMoi
+  reason    String? // LyDo
+  status    String   @default("PENDING")
+  createdBy String // NguoiTao
+  approvedBy String? // NguoiDuyet
+  createdAt DateTime @default(now())
+}
+
+// ---------- XƯỞNG: RẬP / NHÀ MAY / THỢ CẮT ----------
+model RapPattern {
+  id        String   @id @default(cuid())
+  code      String   @unique // MaRap
+  name      String? // TenMaRap
+  createdAt DateTime @default(now())
+}
+
+model RapPhieuNhap {
+  id        String   @id @default(cuid())
+  code      String   @unique // MaPhieuNhapRap
+  ngayCat   DateTime? // NgayCat
+  nhaMay    String? // NhaMay (tên)
+  thoCat    String? // ThoCat
+  maRap     String? // MaRap
+  tongSL    Int      @default(0) // TongSLKeHoach
+  status    String   @default("Mới tạo") // TrangThaiPhieu
+  note      String?
+  createdAt DateTime @default(now())
+  sizes     RapSizeKeHoach[]
+
+  @@index([maRap])
+}
+
+model RapSizeKeHoach {
+  id           String       @id @default(cuid())
+  mam          String // MaMam
+  maRap        String? // MaRap
+  color        String? // Mau
+  size         String? // Size
+  soLop        Int          @default(0) // SoLop
+  slKeHoach    Int          @default(0) // SLKeHoach
+  maHangNoiBo  String? // MaHangNoiBo
+  tenSP        String? // TenSP
+  phieuId      String?
+  phieu        RapPhieuNhap? @relation(fields: [phieuId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([mam])
+  @@index([maRap])
+}
+
+model Factory {
+  id          String              @id @default(cuid())
+  code        String              @unique // MaNhaMay
+  name        String              @unique // TenNhaMay
+  phone       String?
+  address     String?
+  status      String              @default("ACTIVE")
+  settlements FactorySettlement[]
+  payments    FactoryPayment[]
+}
+
+model FactorySettlement {
+  id        String     @id @default(cuid()) // MaChot
+  factoryId String
+  factory   Factory    @relation(fields: [factoryId], references: [id])
+  code      String     @unique
+  amount    Decimal // ThanhTien
+  paid      Decimal    @default(0) // DaThanhToan
+  status    DebtStatus @default(OPEN)
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([factoryId, createdAt])
+}
+
+model FactoryPayment {
+  id           String   @id @default(cuid()) // MaThanhToan
+  factoryId    String
+  factory      Factory  @relation(fields: [factoryId], references: [id])
+  settlementId String?
+  amount       Decimal // SoTien
+  method       String? // HinhThuc
+  note         String?
+  createdAt    DateTime @default(now())
+
+  @@index([factoryId, createdAt])
+}
+
+model Cutter {
+  id     String              @id @default(cuid())
+  code   String              @unique // MaDoiCat
+  name   String              @unique // TenDoiCat
+  phone  String?
+  status String              @default("ACTIVE")
+  txns   CutterTransaction[]
+}
+
+model CutterTransaction {
+  id        String       @id @default(cuid())
+  cutterId  String
+  cutter    Cutter       @relation(fields: [cutterId], references: [id])
+  type      CutterTxType
+  amount    Decimal
+  month     String // yyyy-MM, filter theo tháng
+  note      String?
+  createdAt DateTime     @default(now())
+
+  @@index([cutterId, createdAt])
+}
+
+// ---------- PHỤ LIỆU / NHÂN SỰ / TÀI CHÍNH ----------
+model MaterialSupplier {
+  id       String           @id @default(cuid())
+  code     String           @unique // MaNCC
+  name     String // TenNCC / TenNhaVai
+  category MaterialCategory
+  phone    String?
+  status   String           @default("ACTIVE")
+  txns     MaterialTransaction[]
+
+  @@unique([name, category])
+}
+
+model MaterialTransaction {
+  id         String          @id @default(cuid())
+  supplierId String
+  supplier   MaterialSupplier @relation(fields: [supplierId], references: [id])
+  type       MaterialTxType
+  amount     Decimal
+  note       String?
+  createdAt  DateTime        @default(now())
+
+  @@index([supplierId, createdAt])
+}
+
+model Employee {
+  id        String          @id @default(cuid())
+  name      String          @unique // TenNhanVien
+  phone     String?
+  position  String? // ChucVu
+  dailyWage Decimal? // LuongNgay
+  startDate DateTime?
+  status    String          @default("ACTIVE")
+  attendance Attendance[]
+  advances  SalaryAdvance[]
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  date       DateTime // Ngay
+  shifts     Decimal  @default(1) // Cong
+  overtimeH  Decimal  @default(0) // TangCaGio
+  bonus      Decimal  @default(0)
+
+  @@unique([employeeId, date])
+}
+
+model SalaryAdvance {
+  id         String   @id @default(cuid()) // MaUng
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  amount     Decimal // SoTien
+  note       String?
+  createdAt  DateTime @default(now())
+}
+
+model CustomerPayment {
+  id         String   @id @default(cuid()) // MaThanhToan
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  orderId    String?
+  amount     Decimal // SoTien
+  method     String? // HinhThuc
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId, createdAt])
+}
+
+// Ma trận phân quyền theo module (tbl_PhanQuyen bản cũ)
+model Permission {
+  id        String  @id @default(cuid())
+  role      String // OWNER ADMIN MEMBER BAN_HANG KHO RAP KE_TOAN NHAN_SU BAO_CAO
+  module    String // orders customers kho rap materials hr reports users audit
+  canView   Boolean @default(false)
+  canCreate Boolean @default(false)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+  canApprove Boolean @default(false)
+
+  @@unique([role, module])
+}
