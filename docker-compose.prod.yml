@@ -27,9 +27,6 @@ services:
 
   api:
     image: ghcr.io/manh1504/qldh-api:latest
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-azalas}:${POSTGRES_PASSWORD:?điền POSTGRES_PASSWORD vào .env}@postgres:5432/${POSTGRES_DB:-azalas}?schema=public
       REDIS_URL: redis://redis:6379
@@ -52,11 +49,6 @@ services:
 
   web:
     image: ghcr.io/manh1504/qldh-web:latest
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     environment:
       API_INTERNAL_URL: http://api:8010
     ports:
