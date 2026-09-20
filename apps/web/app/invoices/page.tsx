@@ -8,9 +8,10 @@ import { Guard } from '../../components/Shell';
 
 export default function InvoicesPage() {
   const [status, setStatus] = useState('');
+  const [page, setPage] = useState(1);
   const [msg, setMsg] = useState('');
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ['invs', status], queryFn: () => api(`/invoices?status=${status}&pageSize=20`) });
+  const { data } = useQuery({ queryKey: ['invs', status, page], queryFn: () => api(`/invoices?status=${status}&page=${page}&pageSize=50`) });
   const voidInv = (id: string) => {
     const reason = prompt('Lý do xóa hóa đơn?') || '';
     api(`/invoices/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) })
@@ -23,13 +24,14 @@ export default function InvoicesPage() {
       {msg && <div className="err">{msg}</div>}
       <div className="card">
         <div className="row">
-          <Field label="Lọc trạng thái hóa đơn"><select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <Field label="Lọc trạng thái hóa đơn"><select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
             <option value="">Tất cả</option>
             {['UNPAID', 'PARTIAL', 'PAID', 'VOID'].map((s) => <option key={s} value={s}>{vi(s)}</option>)}
           </select></Field>
         </div>
         <table><thead><tr><th>Đơn</th><th>Khách</th><th>Tổng</th><th>Đã trả</th><th>Trạng thái</th><th></th></tr></thead>
           <tbody>{(data?.data || []).map((v: any) => <InvoiceRow key={v.id} invoice={v} onVoid={voidInv} setMsg={setMsg} />)}</tbody></table>
+        <div className="row" style={{ marginTop: 10 }}><button className="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trước</button><span className="muted">Trang {page}</span><button className="ghost" disabled={page * 50 >= (data?.total || 0)} onClick={() => setPage(page + 1)}>Sau</button></div>
       </div>
     </Guard>
   );

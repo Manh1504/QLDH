@@ -49,6 +49,6 @@ jobs:
             ghcr.io/manh1504/qldh-web:latest
             ghcr.io/manh1504/qldh-web:${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:8010/api' }}
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

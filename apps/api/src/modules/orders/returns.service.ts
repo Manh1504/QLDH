@@ -78,7 +78,7 @@ export class ReturnsService {
   // Nhập lại tồn + trừ ngược công nợ trong 1 transaction
   restockAndAdjustDebt(id: string, actorId: string) {
     return this.prisma.$transaction(async (tx: any) => {
-      const r = await tx.return.findUnique({ where: { id }, include: { items: true, order: { include: { invoice: true } } } });
+      const r = await tx.return.findUnique({ where: { id }, include: { items: true, customer: true, order: { include: { invoice: true } } } });
       if (!r || r.status !== 'APPROVED') throw new BadRequestException('Chỉ restock từ APPROVED');
       let totalQty = 0;
       let credit = 0;
@@ -105,6 +105,9 @@ export class ReturnsService {
         const status = orderPaid <= 0 ? 'UNPAID' : orderPaid < orderTotal ? 'PARTIAL' : 'PAID';
         await tx.invoice.update({ where: { id: r.order!.invoice.id }, data: { total: orderTotal, paid: orderPaid, status } });
       }
+      const debtReduction = Math.min(credit, Number(r.customer.debtBalance));
+      await tx.customer.update({ where: { id: r.customerId }, data: { debtBalance: Math.max(0, Number(r.customer.debtBalance) - debtReduction) } });
+      await tx.debtTransaction.create({ data: { sourceKey: `return:${id}`, customerId: r.customerId, subjectCode: r.customer.code, subjectName: r.customer.name, type: 'KHACH_TRA_HANG', amount: -debtReduction, note: r.note, actorName: actorId, documentCode: r.order?.code, subjectGroup: 'KHACH_HANG', createdAt: new Date() } });
       await tx.return.update({ where: { id }, data: { status: 'DEBT_ADJUSTED' } });
       await tx.auditLog.create({ data: { actorId, action: 'RETURN_DEBT_ADJUST', entityType: 'Return', entityId: id, payload: { totalQty, credit } as any } });
       return { ok: true, totalQty, credit };

@@ -32,12 +32,12 @@ export class CustomersService {
       ]);
       return { data, total, page, pageSize };
     }
-    // debt sort: lấy tổng nợ từng khách rồi sort ở SQL qua raw query
+    // Dùng snapshot sổ công nợ; dữ liệu cũ không thể suy ra chính xác từ tổng đơn trừ thanh toán.
     const rows: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT c.id, COALESCE(SUM(o."total" - o."paid"),0)::float AS debt
-       FROM "Customer" c LEFT JOIN "Order" o ON o."customerId"=c.id AND o.status <> 'HUY'
+      `SELECT c.id, c."debtBalance"::float AS debt
+       FROM "Customer" c
        ${kw ? `WHERE c."name" ILIKE $1 OR c."phone" ILIKE $1 OR c."code" ILIKE $1` : ''}
-       GROUP BY c.id ORDER BY debt ${sortBy === 'debt_asc' ? 'ASC' : 'DESC'} LIMIT $X OFFSET $Y`
+       ORDER BY debt ${sortBy === 'debt_asc' ? 'ASC' : 'DESC'}, c.name ASC LIMIT $X OFFSET $Y`
         .replace('$X', String(pageSize)).replace('$Y', String(skip)),
       ...(kw ? [`%${kw}%`] : []),
     );
@@ -55,11 +55,8 @@ export class CustomersService {
   async get(id: string) {
     const c = await this.prisma.customer.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Không thấy khách');
-    const debt: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT COALESCE(SUM("total"-"paid"),0)::float AS debt, COALESCE(SUM("paid"),0)::float AS paid FROM "Order" WHERE "customerId"=$1 AND status <> 'HUY'`,
-      id,
-    );
-    return { ...c, debt: debt[0]?.debt || 0, paid: debt[0]?.paid || 0 };
+    const paid = await this.prisma.customerPayment.aggregate({ where: { customerId: id }, _sum: { amount: true } });
+    return { ...c, debt: Number(c.debtBalance), paid: Number(paid._sum.amount || 0) };
   }
 
   update(id: string, dto: UpdateCustomerDto) {

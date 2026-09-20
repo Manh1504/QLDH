@@ -29,9 +29,8 @@ export class SystemExtraController {
        WHERE (s."onHand"-s.held) < 10 ORDER BY khadung ASC LIMIT 50`,
     );
     const highDebt: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT c."code", c."name", COALESCE(SUM(o."total"-o."paid"),0)::float AS debt
-       FROM "Customer" c LEFT JOIN "Order" o ON o."customerId"=c.id
-       GROUP BY c."code",c."name" HAVING COALESCE(SUM(o."total"-o."paid"),0) > 1000000 ORDER BY debt DESC LIMIT 50`,
+      `SELECT c."code", c."name", c."debtBalance"::float AS debt
+       FROM "Customer" c WHERE c."debtBalance" > 1000000 ORDER BY c."debtBalance" DESC LIMIT 50`,
     );
     const stuck: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT code, "lockedById", "lockedAt" FROM "Order" WHERE status='DANG_SOAN' AND "lockedAt" < NOW() - INTERVAL '3 days' LIMIT 50`,
@@ -43,8 +42,8 @@ export class SystemExtraController {
   @Get('invoices')
   invoices(@Query() q: any) {
     const { page, pageSize, skip } = parsePaging(q);
-    const where: any = { deletedAt: null };
-    if (q.status) where.status = q.status;
+    const where: any = q.status === 'VOID' ? { status: 'VOID' } : { deletedAt: null };
+    if (q.status && q.status !== 'VOID') where.status = q.status;
     return this.prisma.$transaction([
       this.prisma.invoice.count({ where }),
       this.prisma.invoice.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize, include: { order: { select: { code: true, customerId: true, customer: { select: { name: true } } } } } }),

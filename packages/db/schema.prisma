@@ -127,11 +127,16 @@ model Customer {
   group         String? // NhomKhach
   region        String? // KhuVuc
   status        String            @default("ACTIVE")
+  debtBalance   Decimal           @default(0)
+  zalo          String?
+  note          String?
+  sourceUpdatedAt DateTime?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   orders        Order[]
   returns       Return[]
   payments      CustomerPayment[]
+  debtTransactions DebtTransaction[]
 
   @@index([name])
 }
@@ -148,6 +153,15 @@ model Order {
   note        String? // GhiChuKhach + GhiChuNV
   customerNote String?
   staffNote   String?
+  invoiceState String?
+  salesChannel String?
+  sourceType  String?
+  preparedBy  String?
+  creatorName String?
+  cancelledAt DateTime?
+  cancelledBy String?
+  completedAt DateTime?
+  sourceUpdatedAt DateTime?
   lockedById  String? // NguoiSoan đang giữ (1 người/đơn)
   lockedAt    DateTime?
   version     Int               @default(0) // optimistic lock, fix race bản cũ
@@ -161,6 +175,8 @@ model Order {
   shipment    Shipment?
   invoice     Invoice?
   returns     Return[]
+  payments    CustomerPayment[]
+  paymentAllocations PaymentAllocation[]
 
   @@index([customerId, status])
   @@index([createdAt])
@@ -206,6 +222,9 @@ model OrderImage {
   order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   url          String // LinkAnh (R2 sau này, Drive tạm)
   thumbnailUrl String?
+  sourceId     String?
+  folderId     String?
+  note         String?
   uploadedBy   String
   createdAt    DateTime @default(now()) // mốc SORT thật, fix lỗi bản cũ
 
@@ -246,6 +265,9 @@ model Return {
   status     ReturnStatus @default(REQUESTED)
   note       String?
   inspectedAt DateTime?
+  totalReturn Decimal @default(0)
+  inspector   String?
+  sourceUpdatedAt DateTime?
   createdAt  DateTime     @default(now())
   approvedAt DateTime?
   items      ReturnItem[]
@@ -505,12 +527,47 @@ model CustomerPayment {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
   orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id])
   amount     Decimal // SoTien
   method     String? // HinhThuc
   note       String?
+  collectedBy String?
+  sourceReference String?
   createdAt  DateTime @default(now())
+  allocations PaymentAllocation[]
 
   @@index([customerId, createdAt])
+}
+
+model PaymentAllocation {
+  id        String          @id @default(cuid())
+  paymentId String
+  payment   CustomerPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  orderId   String
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal
+
+  @@unique([paymentId, orderId])
+  @@index([orderId])
+}
+
+model DebtTransaction {
+  id          String    @id @default(cuid())
+  sourceKey   String    @unique
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  subjectCode String
+  subjectName String?
+  type        String
+  amount      Decimal
+  note        String?
+  actorName   String?
+  documentCode String?
+  subjectGroup String?
+  createdAt   DateTime
+
+  @@index([customerId, createdAt])
+  @@index([subjectCode, createdAt])
 }
 
 // Ma trận phân quyền theo module (tbl_PhanQuyen bản cũ)

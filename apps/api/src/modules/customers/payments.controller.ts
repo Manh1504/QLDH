@@ -20,7 +20,9 @@ export class PaymentsController {
         ? await tx.order.findMany({ where: { id: b.orderId, customerId: b.customerId, status: { not: 'HUY' } }, include: { invoice: true } })
         : await tx.order.findMany({ where: { customerId: b.customerId, status: { not: 'HUY' } }, orderBy: { createdAt: 'asc' }, include: { invoice: true } });
       if (b.orderId && !orders.length) throw new BadRequestException('Đơn không thuộc khách hàng');
-      const outstanding = orders.reduce((sum: number, order: any) => sum + Math.max(0, Number(order.total) - Number(order.paid)), 0);
+      const outstanding = b.orderId
+        ? orders.reduce((sum: number, order: any) => sum + Math.max(0, Number(order.total) - Number(order.paid)), 0)
+        : Number(customer.debtBalance);
       if (amount > outstanding) throw new BadRequestException(`Số tiền thu vượt công nợ ${outstanding.toLocaleString('vi-VN')}đ`);
       const p = await tx.customerPayment.create({ data: { customerId: b.customerId, orderId: b.orderId, amount, method: b.method, note: b.note } });
       let remaining = amount;
@@ -41,6 +43,8 @@ export class PaymentsController {
         allocations.push({ orderId: order.id, amount: allocated });
         remaining -= allocated;
       }
+      await tx.customer.update({ where: { id: b.customerId }, data: { debtBalance: Math.max(0, Number(customer.debtBalance) - amount) } });
+      await tx.debtTransaction.create({ data: { sourceKey: `payment:${p.id}`, customerId: b.customerId, subjectCode: customer.code, subjectName: customer.name, type: 'KHACH_THANH_TOAN', amount: -amount, note: b.note, actorName: req.user.sub, documentCode: b.orderId, subjectGroup: 'KHACH_HANG', createdAt: p.createdAt } });
       await tx.auditLog.create({ data: { actorId: req.user.sub, action: 'PAYMENT_COLLECT', entityType: 'Customer', entityId: b.customerId, payload: { amount, orderId: b.orderId, allocations } as any } });
       return p;
     });
@@ -61,9 +65,20 @@ export class PaymentsController {
   customerDebt(@Param('id') id: string) {
     return this.prisma.$queryRawUnsafe(
       `SELECT COALESCE(SUM(o."total"),0)::float AS total, COALESCE(SUM(o."paid"),0)::float AS paidOrders,
+       (SELECT "debtBalance"::float FROM "Customer" WHERE id=$1) AS debt,
        (SELECT COALESCE(SUM(amount),0)::float FROM "CustomerPayment" WHERE "customerId"=$1) AS paidDirect
        FROM "Order" o WHERE o."customerId"=$1 AND o.status <> 'HUY'`,
       id,
     ).then((r: any) => r[0]);
+  }
+
+  @Get('debt/customer/:id')
+  debtHistory(@Param('id') id: string, @Query() q: any) {
+    const { page, pageSize, skip } = parsePaging(q);
+    const where = { customerId: id };
+    return this.prisma.$transaction([
+      this.prisma.debtTransaction.count({ where }),
+      this.prisma.debtTransaction.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
+    ]).then(([total, data]: [number, any[]]) => ({ data, total, page, pageSize }));
   }
 }

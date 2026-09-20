@@ -21,9 +21,10 @@ export default function OrderDetail() {
   const [msg, setMsg] = useState('');
   const qc = useQueryClient();
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
+  const [imgPage, setImgPage] = useState(1);
   const [imgUrl, setImgUrl] = useState('');
   const { data: o } = useQuery({ queryKey: ['order', id], queryFn: () => api(`/orders/${id}`) });
-  const imgs = useQuery({ queryKey: ['order-imgs', id, sort], queryFn: () => api(`/orders/${id}/images?sort=${sort}&pageSize=10`) });
+  const imgs = useQuery({ queryKey: ['order-imgs', id, sort, imgPage], queryFn: () => api(`/orders/${id}/images?sort=${sort}&page=${imgPage}&pageSize=30`) });
 
   const lock = useOrderAction(id, '/lock', setMsg, qc);
   const hold = useOrderAction(id, '/hold', setMsg, qc);
@@ -54,6 +55,7 @@ export default function OrderDetail() {
     <Guard>
       <h1>Đơn {o.code} <span className={`badge ${badge(o.status)}`}>{vi(o.status)}</span></h1>
       <div className="muted">Khách: {o.customer?.name} | Loại: {vi(o.type)} {o.urgent ? '| ĐƠN GẤP' : ''} | Tổng: {Number(o.total).toLocaleString('vi-VN')} | Đã thu: {Number(o.paid).toLocaleString('vi-VN')}</div>
+      {(o.sourceType || o.salesChannel || o.invoiceState || o.preparedBy) && <div className="muted">Nguồn cũ: {o.sourceType || '—'} | Kênh: {o.salesChannel || '—'} | Hóa đơn: {o.invoiceState || '—'} | Người soạn: {o.preparedBy || '—'}</div>}
       <EditOrder order={o} />
       <div className="card">
         <h3>Thao tác theo vòng đời</h3>
@@ -96,7 +98,7 @@ export default function OrderDetail() {
         <div className="card">
           <h3>Ảnh đơn ({imgs.data?.total ?? 0})</h3>
           <div className="row">
-            <select value={sort} onChange={(e) => setSort(e.target.value as any)}>
+            <select value={sort} onChange={(e) => { setSort(e.target.value as any); setImgPage(1); }}>
               <option value="newest">Mới nhất trước</option>
               <option value="oldest">Cũ nhất trước</option>
             </select>
@@ -131,6 +133,7 @@ export default function OrderDetail() {
               </a>
             ))}
           </div>
+          <div className="row" style={{ marginTop: 8 }}><button className="ghost" disabled={imgPage <= 1} onClick={() => setImgPage(imgPage - 1)}>Trước</button><span className="muted">Trang {imgPage}</span><button className="ghost" disabled={imgPage * 30 >= (imgs.data?.total || 0)} onClick={() => setImgPage(imgPage + 1)}>Sau</button></div>
         </div>
       </div>
     </Guard>

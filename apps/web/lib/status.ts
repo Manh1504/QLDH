@@ -20,6 +20,8 @@ const VI: Record<string, string> = {
   IN: 'Nhập', OUT: 'Xuất', TRANSFER: 'Chuyển kho', ADJUST: 'Điều chỉnh', HOLD: 'Giữ', RELEASE: 'Nhả giữ',
   // Loại đơn
   BAN_LE: 'Bán lẻ', BAN_SI: 'Bán sỉ', ZALO: 'Zalo', DON_TU_ANH: 'Đơn từ ảnh',
+  TAN_XUAN: 'Tân Xuân', CA_KOI: 'Cá Koi', TAN_XUAN_CA_KOI: 'Tân Xuân và Cá Koi', KHACH_DAT: 'Khách đặt',
+  'Tân Xuân': 'Tân Xuân', 'Cá Koi': 'Cá Koi', 'Khách đặt': 'Khách đặt',
 };
 
 export function vi(code: string): string {

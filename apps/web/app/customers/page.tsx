@@ -8,10 +8,11 @@ import { Guard } from '../../components/Shell';
 export default function CustomersPage() {
   const [sortBy, setSortBy] = useState('debt_desc');
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState({ code: '', name: '', phone: '', address: '', carrierName: '', carrierPhone: '', group: '', region: '' });
   const [err, setErr] = useState('');
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ['customers', sortBy, q], queryFn: () => api(`/customers?sortBy=${sortBy}&q=${encodeURIComponent(q)}&pageSize=20`) });
+  const { data } = useQuery({ queryKey: ['customers', sortBy, q, page], queryFn: () => api(`/customers?sortBy=${sortBy}&q=${encodeURIComponent(q)}&page=${page}&pageSize=50`) });
   const create = useMutation({
     mutationFn: () => api('/customers', { method: 'POST', body: JSON.stringify(form) }),
     onSuccess: () => { setForm({ code: '', name: '', phone: '', address: '', carrierName: '', carrierPhone: '', group: '', region: '' }); setErr(''); qc.invalidateQueries({ queryKey: ['customers'] }); },
@@ -38,8 +39,8 @@ export default function CustomersPage() {
       </div>
       <div className="card">
         <div className="row">
-          <Field label="Tìm kiếm"><input placeholder="Tên / SĐT / mã" value={q} onChange={(e) => setQ(e.target.value)} /></Field>
-          <Field label="Sắp xếp"><select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <Field label="Tìm kiếm"><input placeholder="Tên / SĐT / mã" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></Field>
+          <Field label="Sắp xếp"><select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(1); }}>
             <option value="debt_desc">Nợ nhiều nhất trước</option>
             <option value="debt_asc">Nợ ít nhất trước</option>
             <option value="name">Tên A-Z</option>
@@ -51,6 +52,7 @@ export default function CustomersPage() {
             <PayRow key={c.id} c={c} />
           ))}</tbody>
         </table>
+        <div className="row" style={{ marginTop: 10 }}><button className="ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trước</button><span className="muted">Trang {page}</span><button className="ghost" disabled={page * 50 >= (data?.total || 0)} onClick={() => setPage(page + 1)}>Sau</button></div>
       </div>
       <PaymentsHistory />
     </Guard>

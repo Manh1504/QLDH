@@ -6,7 +6,7 @@ export class InvoiceService {
   constructor(private prisma: PrismaService) {}
 
   async create(orderId: string, photoUrl: string | undefined, actorId: string) {
-    const o = await this.prisma.order.findUnique({ where: { id: orderId }, include: { invoice: true } });
+    const o = await this.prisma.order.findUnique({ where: { id: orderId }, include: { invoice: true, customer: true } });
     if (!o || !['VAN_CHUYEN', 'XUAT_KHO'].includes(o.status)) throw new BadRequestException('Chỉ sinh hóa đơn từ Vận chuyển/Xuất kho');
     if (o.invoice) throw new BadRequestException('Đã có hóa đơn');
     return this.prisma.$transaction(async (tx: any) => {
@@ -15,6 +15,11 @@ export class InvoiceService {
       const status = paid <= 0 ? 'UNPAID' : paid < total ? 'PARTIAL' : 'PAID';
       const inv = await tx.invoice.create({ data: { orderId, total: o.total, paid: o.paid, status, photoUrl } });
       await tx.order.update({ where: { id: orderId }, data: { status: 'HOA_DON', history: { create: { fromStatus: o.status, toStatus: 'HOA_DON', actorId } } } });
+      const debtIncrease = Math.max(0, total - paid);
+      if (debtIncrease) {
+        await tx.customer.update({ where: { id: o.customerId }, data: { debtBalance: { increment: debtIncrease } } });
+        await tx.debtTransaction.create({ data: { sourceKey: `invoice:${inv.id}`, customerId: o.customerId, subjectCode: o.customer.code, subjectName: o.customer.name, type: 'PHAT_SINH_NO', amount: debtIncrease, actorName: actorId, documentCode: o.code, subjectGroup: 'KHACH_HANG', createdAt: inv.createdAt } });
+      }
       return inv;
     });
   }
@@ -28,7 +33,7 @@ export class InvoiceService {
   // Sửa hóa đơn: lưu vết cũ vào AuditLog, không ghi đè mất dấu
   async update(id: string, patch: { total?: number; paid?: number; photoUrl?: string }, actorId: string) {
     return this.prisma.$transaction(async (tx: any) => {
-      const old = await tx.invoice.findUnique({ where: { id } });
+      const old = await tx.invoice.findUnique({ where: { id }, include: { order: { include: { customer: true } } } });
       if (!old || old.deletedAt) throw new BadRequestException('Hóa đơn không hợp lệ');
       await tx.auditLog.create({ data: { actorId, action: 'INVOICE_EDIT', entityType: 'Invoice', entityId: id, payload: { old, patch } as any } });
       const total = patch.total ?? Number(old.total);
@@ -39,13 +44,27 @@ export class InvoiceService {
       const status = paid <= 0 ? 'UNPAID' : paid < total ? 'PARTIAL' : 'PAID';
       const updated = await tx.invoice.update({ where: { id }, data: { total, paid, status: status as any, photoUrl: patch.photoUrl, editedBy: actorId, editedAt: new Date() } });
       await tx.order.update({ where: { id: old.orderId }, data: { total, paid } });
+      const oldDebt = Math.max(0, Number(old.total) - Number(old.paid));
+      const newDebt = Math.max(0, total - paid);
+      const delta = newDebt - oldDebt;
+      if (delta) {
+        await tx.customer.update({ where: { id: old.order.customerId }, data: { debtBalance: Math.max(0, Number(old.order.customer.debtBalance) + delta) } });
+        await tx.debtTransaction.create({ data: { sourceKey: `invoice-edit:${id}:${Date.now()}`, customerId: old.order.customerId, subjectCode: old.order.customer.code, subjectName: old.order.customer.name, type: delta > 0 ? 'CONG_THEM' : 'GIAM_NO', amount: delta, actorName: actorId, documentCode: old.order.code, subjectGroup: 'KHACH_HANG', createdAt: new Date() } });
+      }
       return updated;
     });
   }
 
   remove(id: string, actorId: string, reason: string) {
     return this.prisma.$transaction(async (tx: any) => {
+      const invoice = await tx.invoice.findUnique({ where: { id }, include: { order: { include: { customer: true } } } });
+      if (!invoice || invoice.deletedAt) throw new BadRequestException('Hóa đơn không hợp lệ');
       await tx.auditLog.create({ data: { actorId, action: 'INVOICE_VOID', entityType: 'Invoice', entityId: id, payload: { reason } as any } });
+      const debtReduction = Math.max(0, Number(invoice.total) - Number(invoice.paid));
+      if (debtReduction) {
+        await tx.customer.update({ where: { id: invoice.order.customerId }, data: { debtBalance: Math.max(0, Number(invoice.order.customer.debtBalance) - debtReduction) } });
+        await tx.debtTransaction.create({ data: { sourceKey: `invoice-void:${id}`, customerId: invoice.order.customerId, subjectCode: invoice.order.customer.code, subjectName: invoice.order.customer.name, type: 'HUY_HOA_DON', amount: -debtReduction, note: reason, actorName: actorId, documentCode: invoice.order.code, subjectGroup: 'KHACH_HANG', createdAt: new Date() } });
+      }
       return tx.invoice.update({ where: { id }, data: { deletedAt: new Date(), status: 'VOID' } });
     });
   }

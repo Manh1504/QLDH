@@ -7,6 +7,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "seed": "tsx seed.ts",
     "import": "tsx import.ts",
+    "import:critical": "tsx import-legacy-critical.ts",
+    "verify:critical": "tsx verify-legacy-critical.ts",
     "validate": "prisma validate"
   },
   "dependencies": {

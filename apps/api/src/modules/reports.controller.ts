@@ -23,7 +23,7 @@ export class ReportsController {
   @Get('debt-center')
   async debtCenter() {
     const customers: any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT c."code", c."name", COALESCE(SUM(o."total"-o."paid"),0)::float AS debt FROM "Customer" c LEFT JOIN "Order" o ON o."customerId"=c.id AND o.status <> 'HUY' GROUP BY c."code",c."name" HAVING COALESCE(SUM(o."total"-o."paid"),0) > 0 ORDER BY debt DESC LIMIT 100`,
+      `SELECT c."code", c."name", c."debtBalance"::float AS debt FROM "Customer" c WHERE c."debtBalance" > 0 ORDER BY c."debtBalance" DESC LIMIT 100`,
     );
     const factories: any[] = await this.prisma.$queryRawUnsafe(
       `SELECT f."name", COALESCE(SUM(s."amount"-s."paid"),0)::float AS debt FROM "Factory" f LEFT JOIN "FactorySettlement" s ON s."factoryId"=f.id GROUP BY f."name" HAVING COALESCE(SUM(s."amount"-s."paid"),0) > 0 ORDER BY debt DESC LIMIT 100`,
